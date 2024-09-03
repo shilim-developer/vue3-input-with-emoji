@@ -12,6 +12,7 @@
     </div>
     <div
       class="input-wrapper"
+      :class="{ error: inputLen > 100 }"
       ref="inputRef"
       :contenteditable="true"
       @blur="rememberCurrentRange"
@@ -20,7 +21,7 @@
       data-placeholder="请输入内容"
     ></div>
     <div class="operation-wrapper">
-      {{ inputLen }} / 300
+      {{ inputLen }} / 100
       <div class="btn-wrapper">
         <emoji-picker @add-emoji="addEmoji" />
         <el-button type="primary" @click="send" style="margin-left: 10px">
@@ -95,13 +96,23 @@ function handleInput() {
 
 function handlePaste(e: ClipboardEvent) {
   e.preventDefault();
+  if (!currentRange.value) {
+    inputRef.value?.focus();
+    currentRange.value = getSelection()?.getRangeAt(0);
+  }
   if (!currentRange.value) return;
   const textArr = e.clipboardData?.getData("text/plain").split("\r\n") || [];
   console.log("textArr:", textArr);
   const selection = getSelection();
-  for (const text of textArr) {
-    const addNode = document.createElement("div");
-    addNode.innerText = text || "\n";
+  for (let index = 0; index < textArr.length; index++) {
+    const text = textArr[index];
+    let addNode;
+    if (index === 0) {
+      addNode = document.createTextNode(text);
+    } else {
+      addNode = document.createElement("div");
+      addNode.innerText = text || "\n";
+    }
     currentRange.value.insertNode(addNode);
     currentRange.value.setStartAfter(addNode);
     selection?.removeAllRanges();
@@ -167,6 +178,7 @@ function send() {
   align-items: flex-start;
   align-self: stretch;
   margin-bottom: 10px;
+  flex-wrap: wrap;
 }
 .message {
   margin: 0;
@@ -191,6 +203,14 @@ function send() {
   word-break: break-all;
   overflow-y: auto;
   vertical-align: middle;
+}
+.input-wrapper.error {
+  border-color: #ff4040;
+  box-shadow: 0 0 0 2px rgba(252, 11, 11, 0.2);
+}
+.input-wrapper:focus.error {
+  border-color: #ff4040;
+  box-shadow: 0 0 0 2px rgba(252, 11, 11, 0.2);
 }
 .input-wrapper:empty::before {
   content: attr(data-placeholder);
