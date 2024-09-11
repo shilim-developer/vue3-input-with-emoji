@@ -17,10 +17,12 @@
       @blur="rememberCurrentRange"
       @input="handleInput"
       @paste="handlePaste"
+      @compositionstart="compositionstart"
+      @compositionend="compositionend"
       data-placeholder="请输入内容"
     ></div>
     <div class="operation-wrapper">
-      {{ inputLen }} / 300
+      {{ inputLen }} / {{ limitLen }}
       <div class="btn-wrapper">
         <emoji-picker @add-emoji="addEmoji" />
         <el-button type="primary" @click="send" style="margin-left: 10px">
@@ -32,14 +34,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
 import EmojiPicker from "@/components/EmojiPicker.vue";
 import { wechatEmojiList } from "@/components/emoji-config.ts";
+import { ref } from "vue";
 
 const messageList = ref<string[]>([]);
 const currentRange = ref<Range>();
 const inputRef = ref<HTMLElement>();
 const inputLen = ref<number>(0);
+const lock = ref(false);
+const limitLen = 5;
 
 const replaceStr = wechatEmojiList
   .map((item) => item.name.replace("[", "\\[").replace("]", "\\]"))
@@ -85,12 +89,26 @@ function computedInputLen() {
     .join("");
   const len = replaceStr + "|[\uD800-\uDBFF][\uDC00-\uDFFF]|.";
   const surrogatePairs = message.match(new RegExp(len, "g")) || [];
-  const actualLength = surrogatePairs.length; // 计算表情字符的实际长度
+  let actualLength = surrogatePairs.length; // 计算表情字符的实际长度
+  // 获取光标的位置
+  let cursorPosition = getCursorPosition(inputRef.value!);
+  console.log("cursorPosition:", cursorPosition);
+  if (actualLength > limitLen) {
+    let startIndex = cursorPosition - (actualLength - limitLen);
+    let range = window.getSelection()?.getRangeAt(0);
+    range?.setStartAfter(inputRef.value?.childNodes[startIndex - 1]!);
+    range?.setEndAfter(inputRef.value?.childNodes[cursorPosition - 1]!);
+    range?.deleteContents();
+    actualLength = limitLen;
+  }
   return actualLength; // 按照长度计算
 }
 
 function handleInput() {
-  inputLen.value = computedInputLen();
+  if (lock.value) {
+  } else {
+    inputLen.value = computedInputLen();
+  }
 }
 
 function handlePaste(e: ClipboardEvent) {
@@ -146,6 +164,30 @@ function send() {
     .call(inputRef.value?.childNodes, getContent)
     .join("");
   messageList.value.push(message);
+}
+function compositionstart() {
+  lock.value = true;
+}
+function compositionend() {
+  lock.value = false;
+  handleInput();
+}
+/**
+ * 获取 HTML 元素中的光标位置
+ * 如果没有获取到 selection，则返回 0
+ * 如果获取到 selection，则通过获取其 range 对象，克隆该对象，设置其范围，获取克隆对象的文本内容长度来计算光标的位置
+ * @param element - 要获取光标位置的 HTML 元素
+ * @returns 光标在指定元素中的位置
+ */
+function getCursorPosition(element: HTMLElement) {
+  let caretOffset = 0;
+  let selection = window.getSelection();
+  let range = selection?.getRangeAt(0);
+  let rangeCopy = range?.cloneRange();
+  rangeCopy?.selectNodeContents(element);
+  rangeCopy?.setEnd(range!.endContainer, range!.endOffset);
+  caretOffset = rangeCopy?.endOffset ?? 0;
+  return caretOffset;
 }
 </script>
 <style scoped>
