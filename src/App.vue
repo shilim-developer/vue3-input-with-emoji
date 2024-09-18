@@ -91,24 +91,40 @@ function computedInputLen() {
   const len = replaceStr + "|[\uD800-\uDBFF][\uDC00-\uDFFF]|.";
   const surrogatePairs = message.match(new RegExp(len, "g")) || [];
   let actualLength = surrogatePairs.length; // 计算表情字符的实际长度
-  // 获取光标的位置
-  let cursorPosition = getCursorPosition(inputRef.value!);
-  console.log("cursorPosition:", cursorPosition);
-  if (actualLength > limitLen) {
-    let startIndex = cursorPosition - (actualLength - limitLen);
-    let range = window.getSelection()?.getRangeAt(0);
-    range?.setStartAfter(inputRef.value?.childNodes[startIndex - 1]!);
-    range?.setEndAfter(inputRef.value?.childNodes[cursorPosition - 1]!);
-    range?.deleteContents();
-    actualLength = limitLen;
-  }
   return actualLength; // 按照长度计算
 }
 
-function handleInput() {
+/**
+ * 删除指定范围内的文本内容
+ * @param elecursorPositionment - 光标位置
+ * @param actualLength - 实际长度
+ */
+function deleteContent(cursorPosition: number, actualLength: number) {
+  let startIndex = cursorPosition - (actualLength - limitLen);
+  let range = window.getSelection()?.getRangeAt(0);
+  let childNodes = inputRef.value?.childNodes;
+  let start = inputRef.value?.childNodes[startIndex - 1];
+  let end = inputRef.value?.childNodes[cursorPosition - 1];
+  if (childNodes?.length === 1 && childNodes[0].nodeName === "#text") {
+    range?.setStart(inputRef.value?.firstChild!, startIndex);
+    range?.setEnd(inputRef.value?.firstChild!, cursorPosition);
+  } else {
+    range?.setStartAfter(start!);
+    range?.setEndAfter(end!);
+  }
+  range?.deleteContents();
+}
+
+async function handleInput() {
   if (lock.value) {
   } else {
-    inputLen.value = computedInputLen();
+    let length = await computedInputLen();
+    inputLen.value = length > limitLen ? limitLen : length;
+    // 获取光标的位置
+    let cursorPosition = await getCursorPosition(inputRef.value!);
+    if (length > limitLen) {
+      deleteContent(cursorPosition, length);
+    }
   }
 }
 
